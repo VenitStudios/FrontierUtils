@@ -1,0 +1,86 @@
+[gd_scene load_steps=6 format=3 uid="uid://da7y77v740jvi"]
+
+[ext_resource type="Script" uid="uid://8mb57m1dpnrp" path="res://main_scene.gd" id="1_0f027"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_0f027"]
+sky_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
+ground_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
+
+[sub_resource type="Sky" id="Sky_2c62f"]
+sky_material = SubResource("ProceduralSkyMaterial_0f027")
+
+[sub_resource type="Environment" id="Environment_gyfs4"]
+background_mode = 2
+sky = SubResource("Sky_2c62f")
+tonemap_mode = 2
+glow_enabled = true
+
+[sub_resource type="WorldBoundaryShape2D" id="WorldBoundaryShape2D_0f027"]
+
+[node name="MainScene" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_0f027")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(-0.8660254, -0.43301278, 0.25, 0, 0.49999997, 0.86602545, -0.50000006, 0.75, -0.43301266, 0, 0, 0)
+shadow_enabled = true
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_gyfs4")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.3888889
+anchor_top = 0.2962963
+anchor_right = 0.6111111
+anchor_bottom = 0.69135803
+grow_horizontal = 2
+grow_vertical = 2
+alignment = 1
+metadata/_edit_use_anchors_ = true
+
+[node name="Host" type="Button" parent="VBoxContainer"]
+layout_mode = 2
+text = "Create Host"
+metadata/_edit_use_anchors_ = true
+
+[node name="Client" type="Button" parent="VBoxContainer"]
+layout_mode = 2
+text = "Create Client"
+metadata/_edit_use_anchors_ = true
+
+[node name="World" type="Node2D" parent="."]
+unique_name_in_owner = true
+
+[node name="StaticBody2D" type="StaticBody2D" parent="World"]
+position = Vector2(32, 632)
+disable_mode = 2
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="World/StaticBody2D"]
+position = Vector2(544, 3)
+shape = SubResource("WorldBoundaryShape2D_0f027")
+
+[node name="Players" type="Node2D" parent="World"]
+unique_name_in_owner = true
+
+[node name="nettime" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = -1
+anchor_right = 0.16666667
+anchor_bottom = 0.03549383
+metadata/_edit_use_anchors_ = true
+
+[node name="CSGBox3D" type="CSGBox3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0)
+use_collision = true
+size = Vector3(32, 1, 32)
+
+[connection signal="pressed" from="VBoxContainer/Host" to="." method="host_pressed"]
+[connection signal="pressed" from="VBoxContainer/Client" to="." method="client_pressed"]

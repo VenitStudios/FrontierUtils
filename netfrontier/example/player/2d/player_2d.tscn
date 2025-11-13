@@ -1,0 +1,35 @@
+[gd_scene load_steps=5 format=3 uid="uid://b14wiwrdbf1js"]
+
+[ext_resource type="Script" uid="uid://8jelq0p3nhe0" path="res://example/player/2d/player_2d.gd" id="1_bml6q"]
+[ext_resource type="Texture2D" uid="uid://dm6pd4yxm5yd2" path="res://icon.svg" id="2_aoqaf"]
+[ext_resource type="Script" uid="uid://c7t3h88oxokyg" path="res://example/player/player_input.gd" id="3_mgfik"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_0cvr6"]
+size = Vector2(64, 64)
+
+[node name="CharacterBody2D" type="CharacterBody2D" node_paths=PackedStringArray("input_node")]
+collision_layer = 2
+script = ExtResource("1_bml6q")
+speed = 200.0
+input_node = NodePath("PlayerInput")
+metadata/_custom_type_script = "uid://8jelq0p3nhe0"
+
+[node name="Icon" type="Sprite2D" parent="."]
+scale = Vector2(0.625, 0.625)
+texture = ExtResource("2_aoqaf")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_0cvr6")
+
+[node name="PlayerInput" type="Node" parent="."]
+script = ExtResource("3_mgfik")
+metadata/_custom_type_script = "uid://c7t3h88oxokyg"
+
+[node name="Label" type="Label" parent="."]
+offset_top = -64.0
+offset_right = 40.0
+offset_bottom = -41.0
+
+[node name="Label2" type="Label" parent="."]
+offset_right = 40.0
+offset_bottom = 23.0

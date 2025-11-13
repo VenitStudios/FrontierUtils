@@ -1,0 +1,42 @@
+[gd_scene load_steps=7 format=3 uid="uid://bepm28jqhy8mo"]
+
+[ext_resource type="Script" uid="uid://fyfhiqn4ksvc" path="res://example/player/3d/player_3d.gd" id="1_3uwet"]
+[ext_resource type="Script" uid="uid://c7t3h88oxokyg" path="res://example/player/player_input.gd" id="2_ry0wd"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_3uwet"]
+
+[sub_resource type="Shader" id="Shader_ry0wd"]
+code = "shader_type spatial;
+render_mode wireframe;
+
+//void light() {
+//	// Called for every pixel for every light affecting the material.
+//	// Uncomment to replace the default light processing function with this one.
+//}
+"
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_snucy"]
+render_priority = 0
+shader = SubResource("Shader_ry0wd")
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_ry0wd"]
+
+[node name="SyncCharacter3D" type="CharacterBody3D" node_paths=PackedStringArray("input_node")]
+collision_layer = 2
+script = ExtResource("1_3uwet")
+input_node = NodePath("PlayerInput")
+metadata/_custom_type_script = "uid://de0620i42uxi4"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("CapsuleShape3D_3uwet")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+material_override = SubResource("ShaderMaterial_snucy")
+mesh = SubResource("CapsuleMesh_ry0wd")
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+
+[node name="PlayerInput" type="Node" parent="."]
+script = ExtResource("2_ry0wd")
+metadata/_custom_type_script = "uid://c7t3h88oxokyg"

@@ -2,7 +2,7 @@ class_name Rollback extends Node
 
 var root: Node
 var input_node: PlayerInput
-var peer: int
+var peer: int = -1
 
 var correcting: bool
 
@@ -10,7 +10,7 @@ var tracked_properties: Dictionary
 var property_buffer: Dictionary[int, Variant]
 var input_buffer: Dictionary[int, Dictionary]
 
-var max_buffer_size: int = 1000
+var max_buffer_size: int = 120
 var distance_limit: float = 1.0
 
 func _init(p_distance_limit: float) -> void:
@@ -21,9 +21,12 @@ func _ready() -> void:
 	NetworkSignals.new_loop.connect(_on_new_loop)
 
 func _on_new_loop(p_tick: int) -> void:
+	max_buffer_size = 1.0+abs(NetworkState.tick_diff) * 60.0
 	if is_instance_valid(root) and is_instance_valid(input_node):
-		if multiplayer.is_server() and not peer == multiplayer.get_unique_id():
-			compare_with_client(input_node.current_tick)
+		#input_node.active = input_node.active and not correcting
+		if is_instance_valid(multiplayer) and multiplayer.is_server():
+			#if not peer == 0:
+			compare_with_client(NetworkState.client_ticks.get(peer,p_tick))
 		else:
 			feed_buffer(p_tick)
 
@@ -42,28 +45,47 @@ func feed_buffer(p_tick: int) -> void:
 	for index: int in tracked_properties.size():
 		property_buffer[p_tick][index] = root.get(tracked_properties.keys()[index])
 	
-	for i in property_buffer.size()-max_buffer_size: property_buffer.erase(property_buffer.keys()[0])
-	for i in input_buffer.size()-max_buffer_size: input_buffer.erase(input_buffer.keys()[0])
+	for i in range(0, property_buffer.size()-max_buffer_size): property_buffer.erase(property_buffer.keys()[0])
+	for i in range(0, input_buffer.size()-max_buffer_size): input_buffer.erase(input_buffer.keys()[0])
 
 
 func compare_with_client(p_tick: int) -> void:
 	var comparison_data: Dictionary
-	for index: int in tracked_properties.size(): 
-		comparison_data[index] = root.get(tracked_properties.keys()[index])
-	compare_buffer.rpc_id(peer, p_tick, comparison_data)
-
+	var serialized_comparison: PackedByteArray
+	if multiplayer.is_server() and not peer == multiplayer.get_unique_id():
+		for index: int in tracked_properties.size():
+			var value = root.get(tracked_properties.keys()[index])
+			var serialized_value: PackedByteArray = NetworkSerializer.serialize(value)
+			comparison_data[index] = value
+			#serialized_comparison.resize(serialized_comparison.size() + 1)
+			serialized_comparison.append_array(serialized_value)
+		compare_buffer.rpc_id(peer, p_tick, serialized_comparison)
+ 
+func deserialize_packet(packet: PackedByteArray) -> Dictionary:
+	var output: Dictionary
+	for index: int in tracked_properties.size():
+		var value = root.get(tracked_properties.keys()[index])
+		var type: int = typeof(value)
+		match type:
+			TYPE_VECTOR3:
+				var size: int = 13
+				output[index] = NetworkSerializer.deserialize(packet.slice(index * size, index * size + size))
+			
+	
+	return output
 
 @rpc("authority", "call_remote")
-func compare_buffer(p_tick: int, p_data: Dictionary) -> void:
+func compare_buffer(p_tick: int, p_serialized_data: PackedByteArray) -> void:
+	var data: Dictionary = deserialize_packet(p_serialized_data)
 	if not multiplayer.is_server() and input_node.is_multiplayer_authority():
 		NetworkState.tick_diff = p_tick - NetworkState.tick
 		var should_correct: bool = false
 		if property_buffer.has(p_tick):
 			var client_data: Variant = property_buffer.get(p_tick)
 			
-			for idx in p_data.keys():
+			for idx in data.keys():
 				var property_key: String = tracked_properties.keys()[idx]
-				var server_property_value: Variant = p_data.get(idx)
+				var server_property_value: Variant = data.get(idx)
 				var client_property_value: Variant = client_data.get(idx)
 				
 				var distance: float
@@ -75,13 +97,20 @@ func compare_buffer(p_tick: int, p_data: Dictionary) -> void:
 						distance = abs(server_property_value - client_property_value)
 				
 				if distance > distance_limit and tracked_properties.get(property_key, false): 
-					
 					should_correct = true
 			
 			if should_correct:
-				rollback_and_replay(p_tick, p_data)
+				#print("correcting")
+				rollback_and_replay(p_tick, data)
+		else:
+			#prints("missing tick %s" % p_tick)
+			for idx in data.keys():
+				var property_key: String = tracked_properties.keys()[idx]
+				var server_property_value: Variant = data.get(idx)
+				root.set(property_key, server_property_value)
 
 func rollback_and_replay(p_tick: int, p_data: Dictionary) -> void:
+	#prints("rolling back to tick", p_tick)
 	correcting = true
 	var ticks_to_replay: int = int(property_buffer.keys().back()) - p_tick # get highest tick in buffer
 	var client_data: Variant = property_buffer.get(p_tick)
@@ -93,31 +122,29 @@ func rollback_and_replay(p_tick: int, p_data: Dictionary) -> void:
 		var client_property_value: Variant = client_data.get(idx)
 		
 		if tracked_properties.get(property_key, false): 
-			#root.set(property_key, server_property_value)
-			var tween : Tween = create_tween()
-			tween.tween_property(root, property_key, server_property_value, 0.05)
+			root.set(property_key, server_property_value)
+			#var tween := create_tween()
+			#tween.tween_property(root, property_key, server_property_value, 1.0/30.0)
 			#await tween.finished
-		
-		if p_tick % 2 == 0 and property_key == "global_position" and root is SyncCharacter3D:
-			pass
+			
 			#add_mesh(server_property_value, Color.RED, distance_limit+0.02)
 			#add_mesh(client_property_value, Color.BLUE, distance_limit-0.02)
-
-	for i: int in ticks_to_replay:
-		var bidx: int = p_tick + i
-		
-		if input_buffer.has(bidx):
-			# this is scuffed lmao - cs
-			input_node.just_pressed = input_buffer[bidx]["pressed"]
-			input_node.just_released = input_buffer[bidx]["released"]
-			input_node.current_inputs = input_buffer[bidx]["total"]
-		
-		if root.has_method("movement_tick"):
-			root.call("movement_tick", p_tick, NetworkState.server_delta)
-		
-		for index: int in tracked_properties.size():
-			if property_buffer.has(bidx):
-				property_buffer[bidx][index] = root.get(tracked_properties.keys()[index])
+	#
+	#for i: int in ticks_to_replay:
+		#var bidx: int = p_tick + i
+		#
+		#if input_buffer.has(bidx):
+			## this is scuffed lmao - cs
+			#input_node.just_pressed = input_buffer[bidx]["pressed"]
+			#input_node.just_released = input_buffer[bidx]["released"]
+			#input_node.current_inputs = input_buffer[bidx]["total"]
+		#
+		#if root.has_method("movement_tick"):
+			#root.call("movement_tick", p_tick, NetworkState.server_delta)
+		#
+		#for index: int in tracked_properties.size():
+			#if property_buffer.has(bidx):
+				#property_buffer[bidx][index] = root.get(tracked_properties.keys()[index])
 		
 	correcting = false
 

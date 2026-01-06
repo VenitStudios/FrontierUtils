@@ -4,7 +4,8 @@ extends EditorPlugin
 const GLOBAL_SCRIPTS: Dictionary[String, String] = {
 	"NetworkTicker": "res://addons/netfrontier/core/network_ticker.gd",
 	"NetworkSignals": "res://addons/netfrontier/core/network_signals.gd",
-	"NetworkState": "res://addons/netfrontier/core/network_state.gd"
+	"NetworkState": "res://addons/netfrontier/core/network_state.gd",
+	"NetworkSerializer": "res://addons/netfrontier/core/network_serializer.gd"
 }
 
 func _enable_plugin() -> void:

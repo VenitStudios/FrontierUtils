@@ -13,7 +13,7 @@ var reading_vector: PackedStringArray
 var current_vec2: Dictionary[String, Variant]
 var current_vec3: Dictionary[String, Variant]
 
-var current_tick: int # used for correction
+@export var active: bool = true
 
 ## used so stuff like the mouse scroll wheel can be detected easily
 var local_press_states : Dictionary[String, bool]
@@ -27,8 +27,7 @@ func _on_new_loop(p_tick: int) -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if is_multiplayer_authority() and get_window().has_focus():
-		current_tick = NetworkState.tick
+	if is_multiplayer_authority() and active:
 		for input in reading_press:
 			var state := Input.is_action_pressed(input)
 			if not state == local_press_states.get_or_add(input, false):
@@ -39,7 +38,7 @@ func _input(event: InputEvent) -> void:
 				else:
 					await NetworkSignals.new_loop
 					input_just_released.rpc(input)
-			
+		
 		for strength in reading_strength:
 			if Input.get_action_raw_strength(strength) != last_strength.get_or_add(strength, 0.0):
 				input_strength.rpc(strength, Input.get_action_raw_strength(strength))
@@ -55,11 +54,19 @@ func _input(event: InputEvent) -> void:
 
 
 func reset() -> void:
-	if not multiplayer.is_server() and is_multiplayer_authority():
-		send_buffers_to_server.rpc(just_pressed, just_released, current_vec2, current_vec3, current_tick)
-		#print(current_vec2, W)
+	if not active or (is_multiplayer_authority() and not get_window().has_focus()):
+		var known_pressed = just_pressed.duplicate()
+		just_released.append_array(known_pressed)
+		current_inputs.clear()
+		for key in last_strength:
+			last_strength[key] = 0
+	
+	if is_instance_valid(multiplayer) and not multiplayer.is_server() and is_multiplayer_authority():
+		send_buffers_to_server.rpc(just_pressed, just_released, current_vec2, current_vec3)
+	
 	just_pressed.clear()
 	just_released.clear()
+
 
 
 @rpc("any_peer", "call_local", "reliable")
@@ -85,13 +92,12 @@ func input_strength(input_name: String, strength: float) -> void:
 
 
 @rpc("any_peer", "call_remote", "unreliable_ordered")
-func send_buffers_to_server(s_just_pressed: PackedStringArray=[], s_just_released:PackedStringArray=[], vec2:Dictionary={}, vec3:Dictionary={}, p_tick:int=NetworkState.tick) -> void:
+func send_buffers_to_server(s_just_pressed: PackedStringArray=[], s_just_released:PackedStringArray=[], vec2:Dictionary={}, vec3:Dictionary={}) -> void:
 	if multiplayer.is_server():
 		#prints(get_multiplayer_authority(), multiplayer.get_remote_sender_id(), current_vec2, current_vec3)
 		
 		just_pressed = s_just_pressed
 		just_released = s_just_released
-		current_tick = p_tick
 		
 		current_vec2 = vec2
 		current_vec3 = vec3
@@ -138,6 +144,7 @@ func get_axis(p_negative_action: StringName, p_positive_action: StringName) -> f
 
 #this function is a GDScript port of Input.get_vector() https://github.com/godotengine/godot/blob/6fd949a6dcbda94140200633394f2b4b99de8f6f/core/input/input.cpp#L546
 func get_vector(p_negative_x: StringName, p_positive_x: StringName, p_negative_y: StringName, p_positive_y: StringName, deadzone: float = -1.0) -> Vector2:
+	if not active: return Vector2.ZERO
 	var vector : Vector2 = Vector2(
 		get_strength(p_positive_x) - get_strength(p_negative_x),
 		get_strength(p_positive_y) - get_strength(p_negative_y),
